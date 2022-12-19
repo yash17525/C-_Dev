@@ -1,8 +1,5 @@
 /*
-    Use C++ 98
-    Use Structure
-    Use malloc to 'allocate' memory and 'free' to release memory
-    Use malloc inside structure
+    Use C++ 98 and use structure & class to determine the default scope (public, proctected or void) of both.
 */
 #include <iostream>
 #include <stdlib.h>

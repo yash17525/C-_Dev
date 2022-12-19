@@ -24,6 +24,19 @@ struct Buffer
 };
 
 int main()
-{
-    Buffer b = Buffer(4);   
+{   
+    int arraySize;
+    cout << "Enter array size: ";
+    cin >> arraySize;
+    cout << "\n Enter array elements: ";
+
+    Buffer intArray = Buffer(arraySize * sizeof(int));   
+    for(int i = 0; i < arraySize; i++)
+    {   
+        int x;
+        cin >> x;
+        (intArray.ptr)[i] = x;
+    }
+    
+    cout << endl;
 }

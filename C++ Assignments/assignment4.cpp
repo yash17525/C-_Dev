@@ -1,13 +1,22 @@
+/*
+    Write structure with reference counting mechanism.
+*/
 #include <iostream>
 #include <stdlib.h>
 
 using namespace std;
 
-struct Buffer
+struct Buffer;
+
+void function1(Buffer *obj);
+void function2(Buffer *obj);
+void function3(Buffer* obj);
+
+    struct Buffer
 {
     Buffer()
     {
-        referenceCount = 1;
+        referenceCount = 0;
         ptr = (Buffer*) malloc(sizeof(Buffer));
     }
 
@@ -15,11 +24,6 @@ struct Buffer
     {
         cout << "Inside Destructor ! \n";
         decreaseReferenceCount();
-        if(referenceCount <= 0)
-        {
-            free(ptr);
-            cout << "Object released ! \n";
-        }
     }
 
     void increaseReferenceCount()
@@ -30,6 +34,11 @@ struct Buffer
     void decreaseReferenceCount()
     {
         referenceCount --;
+        if (referenceCount <= 0)
+        {
+            free(this);
+            cout << "Object released ! \n";
+        }
     }
 
     int referenceCount;
@@ -42,6 +51,7 @@ void function1(Buffer* obj)
     cout << "reference count: " << obj->referenceCount << endl;
 
     // do some stuff
+    function2(obj);
 
     obj->decreaseReferenceCount();
     cout << "reference count: " << obj->referenceCount << endl;
@@ -53,6 +63,7 @@ void function2(Buffer *obj)
     cout << "reference count: " << obj->referenceCount << endl;
 
     // do some stuff
+    function3(obj);
 
     obj->decreaseReferenceCount();
     cout << "reference count: " << obj->referenceCount << endl;
@@ -71,9 +82,7 @@ void function3(Buffer *obj)
 
 int main()
 {
-   Buffer b = Buffer();
-   cout << "reference count: " << b.referenceCount << endl;
-   function1(&b);
-   function2(&b);
-   function3(&b);
+   Buffer *b = new Buffer();
+   cout << "reference count: " << b->referenceCount << endl;
+   function1(b);
 }
