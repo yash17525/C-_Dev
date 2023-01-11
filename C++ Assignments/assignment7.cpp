@@ -7,11 +7,11 @@
 using namespace std;
 
 struct Buffer;
-struct Helper;
+struct RefHelper;
 
-void function1(Helper h);
-void function2(Helper h);
-void function3(Helper h);
+void function1(RefHelper h);
+void function2(RefHelper h);
+void function3(RefHelper h);
 
 struct Buffer
 {
@@ -30,13 +30,13 @@ struct Buffer
     void increaseReferenceCount()
     {
         referenceCount++;
-        cout << "reference count: " << referenceCount << endl;
+        cout << "increased reference count: " << referenceCount << endl;
     }
 
     void decreaseReferenceCount()
     {
         referenceCount--;
-        cout << "reference count: " << referenceCount << endl;
+        cout << "decreased reference count: " << referenceCount << endl;
         if (referenceCount <= 0)
         {
             free(this);
@@ -56,6 +56,13 @@ struct RefHelper
         b->increaseReferenceCount();
     }
 
+    RefHelper(const RefHelper& rh)
+    {
+        cout << "****** inside copy constructor ******";
+        this->buffer = rh.buffer; // don't copy pointers directly, this will be problematic as both copied and orignal object point to the same buffer object. if one object delete the buffer object then other won't be able to use it.
+        this->buffer->increaseReferenceCount();
+    }
+
     ~RefHelper()
     {
         buffer->decreaseReferenceCount();
@@ -64,39 +71,28 @@ struct RefHelper
     Buffer *buffer;
 };
 
-struct Helper
+void function1(RefHelper h)
 {
-    Helper(RefHelper *p)
-    {
-        myRef = p;
-    }
-
-    RefHelper *myRef;
-};
-
-void function1(Helper h)
-{
-    // RefHelper ref(obj);
+    // RefRefRefRefHelperref(obj);
     // do some stuff, to acccess the buffer object: h.myRef->buffer
-    function2(h);
+    cout << "Inside function 1 \n";
+    delete(h.buffer); 
+    /* currently both the objects created using the copy constructor points to the same buffer object. so that is a problem.
+    here we are deleting h.buffer for copied object, so the original object won't be able to use it*/
 }
 
-void function2(Helper h)
+void function2(RefHelper h)
 {
     // do some stuff
-    function3(h);
-}
-
-void function3(Helper h)
-{
-    // do some stuff
+    cout << "Inside function 2 \n";
 }
 
 int main()
 {
     Buffer *b = new Buffer();
-    RefHelper *p = new RefHelper(b);
-    Helper h(p);
-    // cout << "reference count: " << b->referenceCount << endl;
+    RefHelper h(b);
     function1(h);
+    function2(h);
+
+    cout << "about to exit main() \n";
 }

@@ -1,5 +1,8 @@
 /*
     Write structure with reference counting mechanism.
+
+    For implementing reference counting mechanism, use another structure (say RefHelper) which will call increseReference() and 
+    decreaseReference().
 */
 #include <iostream>
 #include <stdlib.h>
@@ -11,22 +14,6 @@ struct Buffer;
 void function1(Buffer *obj);
 void function2(Buffer *obj);
 void function3(Buffer *obj);
-
-struct RefHelper
-{
-    RefHelper(Buffer* b)
-    {
-        buffer = b;
-        b->increaseReferenceCount();
-    }
-
-    ~ RefHelper()
-    {
-        buffer->decreaseReferenceCount();
-    }
-
-    Buffer* buffer;
-};
 
 struct Buffer
 {
@@ -61,6 +48,22 @@ struct Buffer
 
     int referenceCount;
     Buffer *ptr;
+};
+
+struct RefHelper
+{
+    RefHelper(Buffer *b)
+    {
+        buffer = b;
+        b->increaseReferenceCount();
+    }
+
+    ~RefHelper()
+    {
+        buffer->decreaseReferenceCount();
+    }
+
+    Buffer *buffer;
 };
 
 void function1(Buffer *obj)
