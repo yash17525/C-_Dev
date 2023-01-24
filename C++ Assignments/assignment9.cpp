@@ -19,7 +19,7 @@ struct RefClass
     {
         cout << "Inside Constructor of RefClass ! \n";
         referenceCount = 0;
-        ptr = (char *)malloc(sizeof("yashwant")); // allocating a resource + memory
+        ptr = (char *)malloc(strlen("yashwant")); // allocating a resource + memory
     }
 
     RefClass(const RefClass& rt)
@@ -33,7 +33,6 @@ struct RefClass
     ~RefClass()
     {
         cout << "Inside Destructor of RefClass ! \n";
-        Release();
     }
 
     void AddRef()
@@ -48,7 +47,7 @@ struct RefClass
         cout << "decreased reference count: " << referenceCount << endl;
         if (referenceCount <= 0)
         {
-            free(this);
+            delete(this);
             cout << "Object released ! \n";
         }
     }
