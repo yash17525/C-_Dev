@@ -1,5 +1,5 @@
 /*
-Use RefClass and RefHelper for reference counting of class objects
+Using RefClass and RefHelper structs to handle lifetime of class objects using reference counting.
 */
 #include <iostream>
 #include <stdlib.h>
@@ -28,23 +28,24 @@ class Bird
 {
 };
 
-struct RefClassAnimal
+struct RefClass
 {
-    RefClassAnimal()
+    RefClass()
     {
         cout << "Inside Constructor of RefClass ! \n";
         referenceCount = 0;
         animal = new Animal(); // allocating a resource + memory
     }
 
-    RefClassAnimal(const RefClassAnimal &rt)
+    RefClass(const RefClass &rt)
     {
         cout << "-------------------------------------------Inside copy constructor of RefClass ! \n";
     }
 
-    ~RefClassAnimal()
+    ~RefClass()
     {
         cout << "Inside Destructor of RefClass ! \n";
+        delete(animal);
     }
 
     void AddRef()
@@ -85,6 +86,7 @@ struct RefClassMammal
     ~RefClassMammal()
     {
         cout << "Inside Destructor of RefClass ! \n";
+        delete(mammal);
     }
 
     void AddRef()
@@ -125,6 +127,7 @@ struct RefClassBird
     ~RefClassBird()
     {
         cout << "Inside Destructor of RefClass ! \n";
+        delete(bird);
     }
 
     void AddRef()
@@ -150,7 +153,7 @@ struct RefClassBird
 
 struct RefHelperAnimal
 {
-    RefHelperAnimal(RefClassAnimal *rc)
+    RefHelperAnimal(RefClass *rc)
     {
         cout << "Inside Constructor of RefHelper ! \n";
         this->rc = rc;
@@ -170,26 +173,26 @@ struct RefHelperAnimal
         this->rc->Release();
     }
 
-    RefClassAnimal *rc;
+    RefClass *rc;
 };
 
-struct RefHelperMammal
+struct RefHelper
 {
-    RefHelperMammal(RefClassMammal *rc)
+    RefHelper(RefClassMammal *rc)
     {
         cout << "Inside Constructor of RefHelper ! \n";
         this->rc = rc;
         this->rc->AddRef();
     }
 
-    RefHelperMammal(const RefHelperMammal &rh)
+    RefHelper(const RefHelper &rh)
     {
         cout << "****** inside copy constructor of RefHelper ******\n";
         this->rc = rh.rc; // don't copy pointers directly, this will be problematic as both copied and orignal object point to the same buffer object. if one object delete the buffer object then other won't be able to use it.
         this->rc->AddRef();
     }
 
-    ~RefHelperMammal()
+    ~RefHelper()
     {
         cout << "Inside Destructor of RefHelper ! \n";
         this->rc->Release();
@@ -226,9 +229,9 @@ struct RefHelperBird
 int main()
 {
     RefClassMammal *rc_mammal = new RefClassMammal();
-    RefHelperMammal rh_mammal(rc_mammal);
+    RefHelper rh_mammal(rc_mammal);
 
-    RefClassAnimal *rc_animal = new RefClassAnimal();
+    RefClass *rc_animal = new RefClass();
     RefHelperAnimal rh_animal(rc_animal);
 
     RefClassBird *rc_bird = new RefClassBird();
