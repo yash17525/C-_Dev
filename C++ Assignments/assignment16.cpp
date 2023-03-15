@@ -7,35 +7,40 @@
 
 using namespace std;
 
-int readWriteSemaphore = 0;
-int waitSemaphore = 0;
+pthread_mutex_t mLock;
+pthread_cond_t waitForReadOperation; // conditionalVariable
+pthread_cond_t waitForWriteOperation; // conditionalVariable
+pthread_cond_t childThreadCompleted;  // conditionalVariable
+bool writeOperationDone, readOperationDone;
 
-void signal()
-{
-    readWriteSemaphore == 0 ? 1 : 0;
-}
-
-int readWriteOperation(int type, string &line, pthread_mutex_t lock, int lineNumber)
+void readWriteOperation(int type, string &line, pthread_mutex_t lock, int lineNumber)
 {
     pthread_mutex_lock(&lock);
     if (type == 0) // write to file operation
     {
         fstream writePtr;
-        writePtr.open("sample.txt");
 
+        writePtr.open("sample.txt");
         for (int i = 0; i < lineNumber - 1; ++i)
         {
             string temp;
             getline(writePtr, temp);
         }
-
         cout << "thread (1) writing to file, line:   " << line << endl;
         writePtr << line << endl;
         writePtr.close();
-        return 1;
+
+        readOperationDone = false;
+        writeOperationDone = true;
+        pthread_cond_signal(&waitForWriteOperation);
+        // while(readOperationDone == false)
+            pthread_cond_wait(&waitForReadOperation, &lock);
     }
     else if (type == 1) // read from file operation
     {
+        // while(writeOperationDone == false)
+            pthread_cond_wait(&waitForWriteOperation, &lock);
+
         fstream readPtr;
         readPtr.open("sample.txt");
 
@@ -46,38 +51,45 @@ int readWriteOperation(int type, string &line, pthread_mutex_t lock, int lineNum
         cout << "thread (2) reading from file, line:  " << line << endl;
         readPtr.close();
 
+        readOperationDone = true; // in some cases this predicate might be related to memory and it might take time for this condition to reflect in memory,
+                                  // but we would have already signalled pthread_cond_signal(&waitForReadOperation); So, we need to put a while loop on pthread_cond_wait(&waitForReadOperation, &lock); waiting for readWriteOperation to be true.
+        writeOperationDone = false;
+        pthread_cond_signal(&waitForReadOperation);
     }
     pthread_mutex_unlock(&lock);
 }
 
 void *thread_function(void *args)
 {
-    pthread_mutex_t lock;
-    if (pthread_mutex_init(&lock, NULL) != 0)
-    {
-        printf("\n mutex init has failed\n");
-        exit(0);
-    }
-    
     cout << "This is thread 2, thread id: " << pthread_self() << endl;
     string line;
     int i = 1;
     while (i <= 10)
     {
-        while (readWriteSemaphore != 1);
-        readWriteOperation(1, line, lock, i);
+        readWriteOperation(1, line, mLock, i);
         i++;
-        readWriteSemaphore = 0; // put current thread on hold and signal parent thread to write
     }
 
-    this_thread::sleep_for(chrono::milliseconds(5000));
-    waitSemaphore = 1; //child thread completed it's execution, signal main thread 
+    pthread_cond_signal(&childThreadCompleted);
 }
 
 int main()
 {
-    pthread_mutex_t lock;
-    if (pthread_mutex_init(&lock, NULL) != 0)
+    writeOperationDone = false;
+    readOperationDone = false;
+    int status = pthread_cond_init(&waitForReadOperation, NULL);
+    if(status != 0)
+        return 1;
+
+    status = pthread_cond_init(&waitForWriteOperation, NULL);
+    if (status != 0)
+        return 1;
+
+    status = pthread_cond_init(&childThreadCompleted, NULL);
+    if (status != 0)
+        return 1;
+
+    if (pthread_mutex_init(&mLock, NULL) != 0)
     {
         printf("\n mutex init has failed\n");
         return 1;
@@ -101,19 +113,11 @@ int main()
     int i = 1;
     while (i <= 10)
     {
-        while(readWriteSemaphore != 0);
-        readWriteOperation(0, lines[i-1], lock, i);
+        readWriteOperation(0, lines[i-1], mLock, i);
         i++;
-        readWriteSemaphore = 1; // put current thread on hold and signal child thread to read 
     }
 
-    auto start = std::chrono::high_resolution_clock::now();
-
-    while(waitSemaphore == 0); // wait for child thread to complete
-
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    cout << "main thread waited for child thread for " << duration.count() << " milliseconds ...";
+    pthread_cond_wait(&childThreadCompleted, &mLock);
     return 0;
 }
 
@@ -121,8 +125,8 @@ int main()
 OUTPUTS:
 
 yashwantkumar@Yashwants-MacBook-Pro C++ Assignments % ./a.out
-This is thread 1, thread id: This is thread 2, thread id: 0x16f623000
-0x100cc4580
+This is thread 1, thread id: 0x100abc580
+This is thread 2, thread id: 0x16f63f000
 thread (1) writing to file, line:   this is line number 1: gjeg
 thread (2) reading from file, line:  this is line number 1: gjeg
 thread (1) writing to file, line:   this is line number 2: gdg
@@ -143,6 +147,5 @@ thread (1) writing to file, line:   this is line number 9: fwefw
 thread (2) reading from file, line:  this is line number 9: fwefw
 thread (1) writing to file, line:   this is line number 10: ljlj
 thread (2) reading from file, line:  this is line number 10: ljlj
-main thread waited for child thread for 5005 milliseconds ...%
 
 */
