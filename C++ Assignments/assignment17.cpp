@@ -13,18 +13,77 @@ pthread_cond_t waitForWriteOperation; // conditionalVariable
 pthread_cond_t childThreadCompleted;  // conditionalVariable
 bool writeOperationDone, readOperationDone;
 
+struct RefClass
+{
+    RefClass(string filePath, int mode)
+    {
+        referenceCount = 0;
+        if(mode == 0) // write mode
+        {
+            filePtr.open(filePath, ios::app);
+        }
+        else // read mode
+        {
+            filePtr.open(filePath, ios::in);
+        }
+    }
+
+    virtual ~RefClass()
+    {
+        filePtr.close();
+    }
+
+    void AddRef()
+    {
+        referenceCount++;
+    }
+
+    void Release()
+    {
+        referenceCount--;
+        if (referenceCount <= 0)
+        {
+            delete (this);
+        }
+    }
+
+    int referenceCount;
+    fstream filePtr;
+};
+
+struct RefHelper
+{
+    RefHelper(RefClass *rc)
+    {
+        this->rc = rc;
+        this->rc->AddRef();
+    }
+
+    RefHelper(const RefHelper &rh)
+    {
+        this->rc = rh.rc; 
+        this->rc->AddRef();
+    }
+
+    ~RefHelper()
+    {
+        this->rc->Release();
+    }
+
+    RefClass *rc;
+};
+
 void readWriteOperation(int type, char& c, pthread_mutex_t lock, int charNumber)
 {
     pthread_mutex_lock(&lock);
+    RefClass *refClass = new RefClass("characterReadWrite.txt", type);
+    RefHelper RefHelper(refClass);
     if (type == 0) // write to file operation
     {
-        ofstream writePtr;
-        writePtr.open("characterReadWrite.txt");
-        writePtr.seekp(0, ios::end);
-        writePtr.seekp(1, ios::cur);
-        writePtr.put(c);
+        refClass->filePtr.seekp(0, ios::end);
+        refClass->filePtr.seekp(1, ios::cur);
+        refClass->filePtr.put(c);
         cout << "thread (1) writing to file, CHAR:   " << c << endl;
-        writePtr.close();
 
         readOperationDone = false;
         writeOperationDone = true;
@@ -35,17 +94,14 @@ void readWriteOperation(int type, char& c, pthread_mutex_t lock, int charNumber)
     else if (type == 1) // read from file operation
     {
         // while(writeOperationDone == false)
-            pthread_cond_wait(&waitForWriteOperation, &lock);
+        pthread_cond_wait(&waitForWriteOperation, &lock);
 
-        ifstream readPtr;
-        readPtr.open("characterReadWrite.txt");
-        readPtr.seekg(-1, ios::end);
-        readPtr.get(c);
+        refClass->filePtr.seekg(-1, ios::end);
+        refClass->filePtr.get(c);
         cout << "thread (2) reading from file, CHAR:  " << c << endl;
-        readPtr.close();
 
         readOperationDone = true; // in some cases this predicate might be related to memory and it might take time for this condition to reflect in memory,
-                                  // but we would have already signalled pthread_cond_signal(&waitForReadOperation); So, we need to put a while loop on pthread_cond_wait(&waitForReadOperation, &lock); waiting for readWriteOperation to be true.
+                                    // but we would have already signalled pthread_cond_signal(&waitForReadOperation); So, we need to put a while loop on pthread_cond_wait(&waitForReadOperation, &lock); waiting for readWriteOperation to be true.
         writeOperationDone = false;
         pthread_cond_signal(&waitForReadOperation);
     }
@@ -100,7 +156,9 @@ int main()
         i++;
     }
 
+    cout << "waiting for completion of child thread ... \n";
     pthread_cond_wait(&childThreadCompleted, &mLock);
+    cout << "exit main ...";
     return 0;
 }
 
