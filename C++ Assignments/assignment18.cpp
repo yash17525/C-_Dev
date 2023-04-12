@@ -8,41 +8,22 @@
 using namespace std;
 
 pthread_mutex_t mLock;
-pthread_cond_t waitForReadOperation;  // conditionalVariable
 pthread_cond_t waitForWriteOperation; // conditionalVariable
 pthread_cond_t childThreadCompleted;  // conditionalVariable
-bool writeOperationDone, readOperationDone;
 
 struct RefClass
 {
-    RefClass(string filePath, int mode)
+    RefClass(int numCharacters)
     {
         referenceCount = 0;
-        if (mode == 0) // write mode
-        {
-            writePtr = new ofstream();
-            writePtr->open(filePath); // , ios::app
-        }
-        else // read mode
-        {
-            readPtr = new ifstream();
-            readPtr->open(filePath, ios::in);
-        }
+        buffer = new char[numCharacters];
+        writeStatus = new bool[numCharacters];
     }
 
     virtual ~RefClass()
     {
-        if (writePtr)
-        {
-            writePtr->close();
-            delete writePtr;
-        }
-
-        if (readPtr)
-        {
-            readPtr->close();
-            delete readPtr;
-        }
+        delete buffer;
+        delete writeStatus;
     }
 
     void AddRef()
@@ -59,19 +40,9 @@ struct RefClass
         }
     }
 
-    ofstream *getWritePointer()
-    {
-        return writePtr;
-    }
-
-    ifstream *getReadPointer()
-    {
-        return readPtr;
-    }
-
     int referenceCount;
-    ofstream *writePtr;
-    ifstream *readPtr;
+    bool* writeStatus;
+    char* buffer;
 };
 
 struct RefHelper
@@ -96,50 +67,38 @@ struct RefHelper
     RefClass *rc;
 };
 
-void readWriteOperation(int type, char &c, pthread_mutex_t lock, int charNumber)
+void readFromBuffer(pthread_mutex_t lock, RefHelper &refHelper, char &character, int charNumber)
 {
-    pthread_mutex_lock(&lock);
-    RefClass *refClass = new RefClass("characterReadWrite.txt", type);
-    RefHelper RefHelper(refClass);
-    if (type == 0) // write to file operation
-    {
-        refClass->getWritePointer()->seekp(0, ios::end);
-        refClass->getWritePointer()->seekp(1, ios::cur);
-        refClass->getWritePointer()->put(c);
-        cout << "thread (1) writing to file, CHAR:   " << c << endl;
-
-        readOperationDone = false;
-        writeOperationDone = true;
-        pthread_cond_signal(&waitForWriteOperation);
-        // while(readOperationDone == false)
-        pthread_cond_wait(&waitForReadOperation, &lock);
-    }
-    else if (type == 1) // read from file operation
-    {
-        // while(writeOperationDone == false)
+    while (refHelper.rc->writeStatus[charNumber] == false)
         pthread_cond_wait(&waitForWriteOperation, &lock);
 
-        refClass->getReadPointer()->seekg(-1, ios::end);
-        refClass->getReadPointer()->get(c);
-        cout << "thread (2) reading from file, CHAR:  " << c << endl;
+    character = refHelper.rc->buffer[charNumber];
+    cout << "thread (2) reading from buffer, CHAR:  " << character << endl;
 
-        readOperationDone = true; // in some cases this predicate might be related to memory and it might take time for this condition to reflect in memory,
-                                  // but we would have already signalled pthread_cond_signal(&waitForReadOperation); So, we need to put a while loop on pthread_cond_wait(&waitForReadOperation, &lock); waiting for readWriteOperation to be true.
-        writeOperationDone = false;
-        pthread_cond_signal(&waitForReadOperation);
-    }
+}
+
+void writeToBuffer(pthread_mutex_t lock, RefHelper &refHelper, char &character, int charNumber)
+{
+    pthread_mutex_lock(&lock);
+    refHelper.rc->buffer[charNumber] = character;
+    cout << "thread (1) writing to buffer, CHAR:   " << character << endl;
+
+    refHelper.rc->writeStatus[charNumber] = true;
+    pthread_cond_signal(&waitForWriteOperation);
     pthread_mutex_unlock(&lock);
 }
 
 void *thread_function(void *args)
 {
+    RefHelper* refHelper = reinterpret_cast<RefHelper*>(args);
     cout << "This is thread 2, thread id: " << pthread_self() << endl;
     char c;
     int i = 1;
     while (i <= 10)
     {
-        readWriteOperation(1, c, mLock, i);
+        readFromBuffer(mLock, *refHelper, c, i);
         i++;
+        this_thread::sleep_for(chrono::milliseconds(1000));
     }
 
     pthread_cond_signal(&childThreadCompleted);
@@ -147,13 +106,7 @@ void *thread_function(void *args)
 
 int main()
 {
-    writeOperationDone = false;
-    readOperationDone = false;
-    int status = pthread_cond_init(&waitForReadOperation, NULL);
-    if (status != 0)
-        return 1;
-
-    status = pthread_cond_init(&waitForWriteOperation, NULL);
+    int status = pthread_cond_init(&waitForWriteOperation, NULL);
     if (status != 0)
         return 1;
 
@@ -167,17 +120,22 @@ int main()
         return 1;
     }
 
+    RefClass *refClass = new RefClass(10);
+    RefHelper refHelper(refClass);
+
     char arr[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'};
 
     pthread_t my_thread;
-    int ret = pthread_create(&my_thread, NULL, &thread_function, NULL);
+    int ret = pthread_create(&my_thread, NULL, &thread_function, &refHelper);
     cout << "This is thread 1, thread id: " << pthread_self() << endl;
     int i = 1;
     while (i <= 10)
     {
-        readWriteOperation(0, arr[i - 1], mLock, i);
+        writeToBuffer(mLock, refHelper, arr[i - 1], i);
         i++;
-    }
+        if(i % 3 == 0)
+            this_thread::sleep_for(chrono::milliseconds(1000));
+     }
 
     cout << "waiting for completion of child thread ... \n";
     pthread_cond_wait(&childThreadCompleted, &mLock);
