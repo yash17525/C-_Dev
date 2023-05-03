@@ -1,3 +1,23 @@
+/*
+Use a queue as a buffer. Write thread push item to queue and read thread pop item from queue
+Special character at the end of the item stream, which signifies the end of the items ($ used for this purpose)
+Custom Queue
+    - queue<QueueItems>
+    - mutex, push/ pop operation forms a critical section
+    - conditional-variable-helper for wait(read thread wait if queue is empty) and signal (write thread signal to the waiting threads when an item is pushed to queue)
+        - this conditional-vairable-helper class has it's own mutex and conditional variable
+        - wait and signal forms another critical section
+
+Above queue should be ref counted to manage it's lifetime
+Mutex should be ref counted to manage it's lifetime
+
+QueueItem class
+    - contains Item
+    - pointer to a function
+
+Generic thread(child thread) wait until queue is empty, once there is item in queue, generic-thread pop the QueueItem and use the pointer-to-function of the QueueItem 
+field to execute some function.
+*/
 #include <iostream>
 #include <pthread.h>
 #include <fstream>
